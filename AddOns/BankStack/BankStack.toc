@@ -1,0 +1,19 @@
+## Interface: 20400
+## Title: BankStack
+## Author: Kemayo
+## Notes: From bags we came, to bank we return
+## Version: 1
+## X-Category: Inventory
+## LoadOnDemand: 0
+## OptionalDeps: LibRock-1.0, FuBar, LibFuBarPlugin-3.0, FuBarPlugin-2.0, FuBar_ClockFu
+## SavedVariables: BankStackDB, BankStackFuDB
+
+local.enUS.lua
+
+core.lua
+stack.lua
+sort.lua
+fill.lua
+config.lua
+
+fu.lua

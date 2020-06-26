@@ -1,0 +1,11 @@
+------------------------------------------------------------------------
+r65653 | kemayo | 2008-03-25 03:48:34 -0400 (Tue, 25 Mar 2008) | 2 lines
+Changed paths:
+   M /trunk/BankStack/BankStack.toc
+   M /trunk/BankStack/config.lua
+   M /trunk/BankStack/core.lua
+   M /trunk/BankStack/fill.lua
+
+BankStack: Remove various globals that shouldn't be.
+
+------------------------------------------------------------------------
