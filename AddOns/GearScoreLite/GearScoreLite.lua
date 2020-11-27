@@ -1,41 +1,15 @@
---[[
 
-                               GearScoreLite                                 
-                              Version 3x04y01                            
-						   	    Mirrikat45                          
-						2.4.3 port by xarthasskrillexx
+-------------------------------------------------------------------------------
+--                            GearScoreLite                                  --
+--                             Version 3x04                                   --
+--								Mirrikat45                                   --
+-------------------------------------------------------------------------------
 
-Change Log 3x04y05
--adjusted item quality estimation (only affects the colour of the text)
+--Change Log 3x04
+--Fixed an error with GS less over 6000.
+--GS will now be reduced on un-enchanted items that are enchantable. 
+--Remember that gems are always shown as empty by initial API calls so I cant determine if gems are missing or not.
 
-Change Log 3x04y04
--fixed the formula used for calculation (scores appear slightly different than before but are more accurate)
--added (rudimentary) gem detection and changed enchant detection:
- -having gems or enchants now gives you a 2% bonus to GS for each gem/enchant
- -does not detect if they're shitty gems/enchants or anything
- -a better system would require having a database of every gem/enchant in the game (and also a database of every item with socket),
-  and would thus be way out of the scope of the addon for now
-						
-Change Log 3x04y03
--removed Heirloom calculation
--fixed hunter score calculation
-						
-Change Log 3x04y02
--actual release
--polished stuff
--removed titan grip handling because no titan grip here boss
-						
-Change Log 3x04y01
--Initial port non-release
--Quick and dirty hack to the original to make it function under 2.4.3
- -changed the calculation (quickly and dirtily) to sort of reflect how the addon functioned in wotlk:
-  -the very best gear around should give you something like 6000 GS give or take
-  -the very best single items around (ilvl 164 for TBC and 284 for WotLK) should have similar individual GS
-  -fresh 70 people have about 2000 GS which is similar to what fresh 80's had in wotlk
--removed the "Special" feature that gave people special titles in the tooltips for donating etc, as it was unnecessary on private servers
-
-
-]]
 ------------------------------------------------------------------------------
 
 function GearScore_OnEvent(GS_Nil, GS_EventName, GS_Prefix, GS_AddonMessage, GS_Whisper, GS_Sender)
@@ -58,18 +32,32 @@ end
 function GearScore_GetScore(Name, Target)
 	if ( UnitIsPlayer(Target) ) then
 	    local PlayerClass, PlayerEnglishClass = UnitClass(Target);
-		local GearScore = 0; local PVPScore = 0; local ItemCount = 0; local LevelTotal = 0; local TempEquip = {}; local TempPVPScore = 0
+		local GearScore = 0; local PVPScore = 0; local ItemCount = 0; local LevelTotal = 0; local TitanGrip = 1; local TempEquip = {}; local TempPVPScore = 0
+
+		if ( GetInventoryItemLink(Target, 16) ) and ( GetInventoryItemLink(Target, 17) ) then
+      		local ItemName, ItemLink, ItemRarity, ItemLevel, ItemMinLevel, ItemType, ItemSubType, ItemStackCount, ItemEquipLoc, ItemTexture = GetItemInfo(GetInventoryItemLink(Target, 16))
+            if ( ItemEquipLoc == "INVTYPE_2HWEAPON" ) then TitanGrip = 0.5; end
+		end
+
+		if ( GetInventoryItemLink(Target, 17) ) then
+			local ItemName, ItemLink, ItemRarity, ItemLevel, ItemMinLevel, ItemType, ItemSubType, ItemStackCount, ItemEquipLoc, ItemTexture = GetItemInfo(GetInventoryItemLink(Target, 17))
+			if ( ItemEquipLoc == "INVTYPE_2HWEAPON" ) then TitanGrip = 0.5; end
+			TempScore, ItemLevel = GearScore_GetItemScore(GetInventoryItemLink(Target, 17));
+			if ( PlayerEnglishClass == "HUNTER" ) then TempScore = TempScore * 0.3164; end
+			GearScore = GearScore + TempScore * TitanGrip;	ItemCount = ItemCount + 1; LevelTotal = LevelTotal + ItemLevel
+		end
 		
 		for i = 1, 18 do
-			if ( i ~= 4 ) then
+			if ( i ~= 4 ) and ( i ~= 17 ) then
         		ItemLink = GetInventoryItemLink(Target, i)
         		GS_ItemLinkTable = {}
 				if ( ItemLink ) then
         			local ItemName, ItemLink, ItemRarity, ItemLevel, ItemMinLevel, ItemType, ItemSubType, ItemStackCount, ItemEquipLoc, ItemTexture = GetItemInfo(ItemLink)
         			if ( GS_Settings["Detail"] == 1 ) then GS_ItemLinkTable[i] = ItemLink; end
      				TempScore = GearScore_GetItemScore(ItemLink);
-					if ( i == 16 or i == 17 ) and ( PlayerEnglishClass == "HUNTER" ) then TempScore = TempScore * 0.3164; end
+					if ( i == 16 ) and ( PlayerEnglishClass == "HUNTER" ) then TempScore = TempScore * 0.3164; end
 					if ( i == 18 ) and ( PlayerEnglishClass == "HUNTER" ) then TempScore = TempScore * 5.3224; end
+					if ( i == 16 ) then TempScore = TempScore * TitanGrip; end
 					GearScore = GearScore + TempScore;	ItemCount = ItemCount + 1; LevelTotal = LevelTotal + ItemLevel
 				end
 			end;
@@ -83,40 +71,42 @@ function GearScore_GetScore(Name, Target)
 	end
 end
 
-------------------------cool n dirty enchant and gem calc--------------------------
+-------------------------------------------------------------------------------
 
 function GearScore_GetEnchantInfo(ItemLink, ItemEquipLoc)
 	local found, _, ItemSubString = string.find(ItemLink, "^|c%x+|H(.+)|h%[.*%]");
 	local ItemSubStringTable = {}
-	local bonusPercent = 1
-	local enchCount = 0
 
 	for v in string.gmatch(ItemSubString, "[^:]+") do tinsert(ItemSubStringTable, v); end
-	if ( ItemSubStringTable[3] == "0" ) and( GS_ItemTypes[ItemEquipLoc]["Enchantable"] ) then
-		enchCount = enchCount - 1
+	ItemSubString = ItemSubStringTable[2]..":"..ItemSubStringTable[3], ItemSubStringTable[2]
+	local StringStart, StringEnd = string.find(ItemSubString, ":") 
+	ItemSubString = string.sub(ItemSubString, StringStart + 1)
+	if ( ItemSubString == "0" ) and ( GS_ItemTypes[ItemEquipLoc]["Enchantable"] )then
+		 --table.insert(MissingEnchantTable, ItemEquipLoc)
+		 local percent = ( floor((-2 * ( GS_ItemTypes[ItemEquipLoc]["SlotMOD"] )) * 100) / 100 );
+		 return(1 + (percent/100));
+	else
+	return 1;
 	end
-	for i = 4, 7 do
-		if ( ItemSubStringTable[i] ~= "0" ) then
-			enchCount = enchCount + 1
-		end
-	end
-	bonusPercent = (floor(2 * (GS_ItemTypes[ItemEquipLoc]["SlotMOD"]) * 100 * enchCount) / 100);
-	return(1 + (bonusPercent/100));	
+	
 end						
+
 
 ------------------------------ Get Item Score ---------------------------------
 function GearScore_GetItemScore(ItemLink)
 	local QualityScale = 1; local PVPScale = 1; local PVPScore = 0; local GearScore = 0
 	if not ( ItemLink ) then return 0, 0; end
-	local ItemName, ItemLink, ItemRarity, ItemLevel, ItemMinLevel, ItemType, ItemSubType, ItemStackCount, ItemEquipLoc, ItemTexture = GetItemInfo(ItemLink); local Table = {}; local Scale = 2.97
+	local ItemName, ItemLink, ItemRarity, ItemLevel, ItemMinLevel, ItemType, ItemSubType, ItemStackCount, ItemEquipLoc, ItemTexture = GetItemInfo(ItemLink); local Table = {}; local Scale = 1.8618
  	if ( ItemRarity == 5 ) then QualityScale = 1.3; ItemRarity = 4;
 	elseif ( ItemRarity == 1 ) then QualityScale = 0.005;  ItemRarity = 2
 	elseif ( ItemRarity == 0 ) then QualityScale = 0.005;  ItemRarity = 2 end
+    if ( ItemRarity == 7 ) then ItemRarity = 3; ItemLevel = 187.05; end
     if ( GS_ItemTypes[ItemEquipLoc] ) then
-        if ( ItemLevel > 81 ) then Table = GS_Formula["A"]; else Table = GS_Formula["B"]; end
+        if ( ItemLevel > 120 ) then Table = GS_Formula["A"]; else Table = GS_Formula["B"]; end
 		if ( ItemRarity >= 2 ) and ( ItemRarity <= 4 )then
-            local Red, Green, Blue = GearScore_GetQuality((floor(((ItemLevel - Table[ItemRarity].A) / Table[ItemRarity].B) * 1 * Scale)) * 16.98 )
+            local Red, Green, Blue = GearScore_GetQuality((floor(((ItemLevel - Table[ItemRarity].A) / Table[ItemRarity].B) * 1 * Scale)) * 11.25 )
             GearScore = floor(((ItemLevel - Table[ItemRarity].A) / Table[ItemRarity].B) * GS_ItemTypes[ItemEquipLoc].SlotMOD * Scale * QualityScale)
+			if ( ItemLevel == 187.05 ) then ItemLevel = 0; end
 			if ( GearScore < 0 ) then GearScore = 0;   Red, Green, Blue = GearScore_GetQuality(1); end
 			if ( PVPScale == 0.75 ) then PVPScore = 1; GearScore = GearScore * 1; 
 			else PVPScore = GearScore * 0; end
@@ -170,6 +160,7 @@ function GearScore_HookSetUnit(arg1, arg2)
 			if ( MyGearScore   < TheirGearScore   ) then GameTooltip:AddDoubleLine("YourScore: "..MyGearScore, "(-"..(TheirGearScore - MyGearScore  )..")", 1,0,0, 1,0,0); end	
 			if ( MyGearScore   == TheirGearScore   ) then GameTooltip:AddDoubleLine("YourScore: "..MyGearScore  , "(+0)", 0,1,1,0,1,1); end	
 		end
+		if ( GS_Settings["Special"] == 1 ) and ( GS_Special[Name] ) then GameTooltip:AddLine(GS_Special[GS_Special[Name].Type], 1, 0, 0 ); end
 	end
 end
 
@@ -248,13 +239,13 @@ end
 
 ---------------GS-SPAM Slasch Command--------------------------------------
 function GS_MANSET(Command)
-	if ( strlower(Command) == "" ) or ( strlower(Command) == "options" ) or ( strlower(Command) == "option" ) or ( strlower(Command) == "help" ) then for i,v in ipairs(GS_CommandList) do DEFAULT_CHAT_FRAME:AddMessage(v); end; return; end;
-	if ( strlower(Command) == "show" ) then GS_Settings["Player"] = GS_ShowSwitch[GS_Settings["Player"]]; if ( GS_Settings["Player"] == 1 ) or ( GS_Settings["Player"] == 2 ) then DEFAULT_CHAT_FRAME:AddMessage("Player Scores: On"); else DEFAULT_CHAT_FRAME:AddMessage("Player Scores: Off"); end; return; end
-	if ( strlower(Command) == "player" ) then GS_Settings["Player"] = GS_ShowSwitch[GS_Settings["Player"]]; if ( GS_Settings["Player"] == 1 ) or ( GS_Settings["Player"] == 2 ) then DEFAULT_CHAT_FRAME:AddMessage("Player Scores: On"); else DEFAULT_CHAT_FRAME:AddMessage("Player Scores: Off"); end; return; end
-    if ( strlower(Command) == "item" ) then GS_Settings["Item"] = GS_ItemSwitch[GS_Settings["Item"]]; if ( GS_Settings["Item"] == 1 ) or ( GS_Settings["Item"] == 3 ) then DEFAULT_CHAT_FRAME:AddMessage("Item Scores: On"); else DEFAULT_CHAT_FRAME:AddMessage("Item Scores: Off"); end; return; end
-	if ( strlower(Command) == "level" ) then GS_Settings["Level"] = GS_Settings["Level"] * -1; if ( GS_Settings["Level"] == 1 ) then DEFAULT_CHAT_FRAME:AddMessage("Item Levels: On"); else DEFAULT_CHAT_FRAME:AddMessage("Item Levels: Off"); end; return; end
-	if ( strlower(Command) == "compare" ) then GS_Settings["Compare"] = GS_Settings["Compare"] * -1; if ( GS_Settings["Compare"] == 1 ) then DEFAULT_CHAT_FRAME:AddMessage("Comparisons: On"); else DEFAULT_CHAT_FRAME:AddMessage("Comparisons: Off"); end; return; end
-	DEFAULT_CHAT_FRAME:AddMessage("GearScore: Unknown Command. Type '/gs' for a list of options")
+	if ( strlower(Command) == "" ) or ( strlower(Command) == "options" ) or ( strlower(Command) == "option" ) or ( strlower(Command) == "help" ) then for i,v in ipairs(GS_CommandList) do print(v); end; return end
+	if ( strlower(Command) == "show" ) then GS_Settings["Player"] = GS_ShowSwitch[GS_Settings["Player"]]; if ( GS_Settings["Player"] == 1 ) or ( GS_Settings["Player"] == 2 ) then print("Player Scores: On"); else print("Player Scores: Off"); end; return; end
+	if ( strlower(Command) == "player" ) then GS_Settings["Player"] = GS_ShowSwitch[GS_Settings["Player"]]; if ( GS_Settings["Player"] == 1 ) or ( GS_Settings["Player"] == 2 ) then print("Player Scores: On"); else print("Player Scores: Off"); end; return; end
+    if ( strlower(Command) == "item" ) then GS_Settings["Item"] = GS_ItemSwitch[GS_Settings["Item"]]; if ( GS_Settings["Item"] == 1 ) or ( GS_Settings["Item"] == 3 ) then print("Item Scores: On"); else print("Item Scores: Off"); end; return; end
+	if ( strlower(Command) == "level" ) then GS_Settings["Level"] = GS_Settings["Level"] * -1; if ( GS_Settings["Level"] == 1 ) then print ("Item Levels: On"); else print ("Item Levels: Off"); end; return; end
+	if ( strlower(Command) == "compare" ) then GS_Settings["Compare"] = GS_Settings["Compare"] * -1; if ( GS_Settings["Compare"] == 1 ) then print ("Comparisons: On"); else print ("Comparisons: Off"); end; return; end
+	print("GearScore: Unknown Command. Type '/gs' for a list of options")
 end
 
 
