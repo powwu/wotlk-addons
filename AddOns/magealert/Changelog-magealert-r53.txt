@@ -1,0 +1,14 @@
+------------------------------------------------------------------------
+r53 | yheen | 2010-02-01 03:58:55 +0000 (Mon, 01 Feb 2010) | 1 line
+Changed paths:
+   M /trunk/magealert.lua
+   M /trunk/magealert.toc
+
+arcanblast combopoints added
+------------------------------------------------------------------------
+r52 | trent2 | 2009-12-19 21:00:00 +0000 (Sat, 19 Dec 2009) | 1 line
+Changed paths:
+   M /trunk/magealert.xml
+
+3.3 compatibility
+------------------------------------------------------------------------
